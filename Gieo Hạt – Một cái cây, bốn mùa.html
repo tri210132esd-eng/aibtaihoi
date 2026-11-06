@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gieo Hạt – Một cái cây, bốn mùa</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,600&family=Baloo+2:wght@600;800&display=swap">
+<style>
+:root{--ink:#2b3a2f;--card:rgba(255,250,240,.9);--acc:#3f8f5a;--onacc:#fff;color-scheme:light dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#eef5ea;--card:rgba(22,32,28,.88);--acc:#7bd29a;--onacc:#10241a}}
+:root[data-theme="dark"]{--ink:#eef5ea;--card:rgba(22,32,28,.88);--acc:#7bd29a;--onacc:#10241a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#bfe3f7;font-family:"Baloo 2","Trebuchet MS",system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none;overflow:hidden}
+#wrap{position:relative;height:100%;max-width:900px;margin:0 auto}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;color:#fff;font-weight:800;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.45)}
+.m{display:flex;align-items:center;gap:6px;font-size:16px}
+.m i{display:block;width:84px;height:10px;border-radius:6px;background:rgba(0,0,0,.28);overflow:hidden}
+.m u{display:block;height:100%;width:0;background:#7ad0ff;border-radius:6px}
+#gb{background:#86e08c}
+#wb.low{background:#ff8a6b}
+#sn{font-size:18px}
+#snd{pointer-events:auto;background:rgba(0,0,0,.25);border:0;color:#fff;font-size:16px;border-radius:12px;padding:2px 9px;cursor:pointer}
+#cap{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));text-align:center;padding:0 18px;font-family:"Playfair Display",Georgia,serif;font-style:italic;font-size:19px;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.6);pointer-events:none;transition:opacity .4s}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,20,15,.35);backdrop-filter:blur(3px)}
+#card{background:var(--card);color:var(--ink);border-radius:22px;padding:26px 24px;max-width:430px;text-align:center;display:flex;flex-direction:column;gap:12px;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+h1{margin:0;font-family:"Playfair Display",Georgia,serif;font-style:italic;font-weight:600;font-size:clamp(40px,11vw,60px);line-height:1.05}
+#sub{margin:0;font-size:18px;color:var(--acc);font-weight:800}
+#msg{margin:0;font-size:17px;line-height:1.5;white-space:pre-line}
+button#go{font:inherit;font-size:21px;font-weight:800;background:var(--acc);color:var(--onacc);border:0;border-radius:16px;padding:11px 34px;cursor:pointer;align-self:center}
+button:focus-visible{outline:3px solid var(--acc);outline-offset:3px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <div id="hud">
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <div class="m">💧<i><u id="wb"></u></i></div>
+      <div class="m">🌳<i><u id="gb"></u></i></div>
+    </div>
+    <span id="sn">Xuân</span>
+    <button id="snd" aria-label="Bật tắt âm thanh">🔊</button>
+  </div>
+  <div id="cap"></div>
+  <div id="overlay"><div id="card">
+    <h1 id="ttl">Gieo Hạt</h1>
+    <p id="sub">Một cái cây, bốn mùa</p>
+    <p id="msg">Bạn là người chăm sóc một hạt mầm nhỏ.
+Giữ ngón tay gần cây để tưới nước. Chạm vào sâu để bắt chúng. Khi bão đến, hãy giữ tay lên thân cây để che chở.
+
+Hơn hai phút, đủ để một cái cây lớn lên.</p>
+    <button id="go">Gieo hạt</button>
+  </div></div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),overlay=document.getElementById('overlay'),
+ttl=document.getElementById('ttl'),sub=document.getElementById('sub'),msg=document.getElementById('msg'),go=document.getElementById('go'),
+wb=document.getElementById('wb'),gb=document.getElementById('gb'),sn=document.getElementById('sn'),cap=document.getElementById('cap'),snd=document.getElementById('snd');
+const LH=480,GY=400,END=140;let LW=800,sc=1,TX=400,fit=1;
+let state='menu',T=0,g=.03,w=.7,down=false,px=0,py=0,pests=[],birds=[],parts=[],texts=[],spawnT=5,time=0,
+watered=0,squashed=0,sheltered=0,stormOn=false,sl=0,capI=-1,dropT=0,shT=0,KF,thunder=false;
+function resize(){const d=devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*d;cv.height=H*d;sc=H/LH;LW=W/sc;TX=LW/2;fit=Math.min(1,LW/330);ctx.setTransform(d*sc,0,0,d*sc,0,0)}
+addEventListener('resize',resize);resize();
+
+/* audio */
+let AC,master,muted=false;const SCALE=[262,294,330,392,440,523,587,659,784];
+function initAudio(){if(AC)return;try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=muted?0:1;master.connect(AC.destination);
+ setInterval(()=>tone(SCALE[Math.random()*7|0],2.2,'sine',.04),1700)}catch(e){}}
+function tone(f,d=.15,type='sine',vol=.12,slide=0,delay=0){if(!AC)return;const t=AC.currentTime+delay,o=AC.createOscillator(),gn=AC.createGain();
+ o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);
+ gn.gain.setValueAtTime(vol,t);gn.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(gn).connect(master);o.start(t);o.stop(t+d)}
+snd.addEventListener('pointerdown',e=>{e.stopPropagation();muted=!muted;snd.textContent=muted?'🔇':'🔊';if(master)master.gain.value=muted?0:1});
+
+/* helpers */
+const hash=k=>Math.abs((Math.sin(k*127.1)*43758.5)%1);
+const rgb=(a,al=1)=>'rgba('+(a[0]|0)+','+(a[1]|0)+','+(a[2]|0)+','+(a[3]!==undefined?a[3]:al)+')';
+const K=[[0,[150,215,255],[255,236,245],[118,196,96],[255,186,214,.95],1],[35,[72,170,245],[212,242,255],[58,152,72],[56,156,72,.95],1.15],
+[70,[242,166,104],[255,226,188],[196,152,72],[226,128,40,.95],1],[100,[150,166,192],[236,241,248],[240,244,250],[250,252,255,.95],.4],
+[125,[150,215,255],[255,236,245],[118,196,96],[255,186,214,.95],1.1],[140,[150,215,255],[255,236,245],[118,196,96],[255,186,214,.95],1.1]];
+function kf(){let i=0;while(i<K.length-2&&T>=K[i+1][0])i++;const a=K[i],b=K[i+1];let u=Math.min(Math.max((T-a[0])/(b[0]-a[0]),0),1);u=u*u*(3-2*u);
+ const m=j=>a[j].map((v,k)=>v+(b[j][k]-v)*u);return{top:m(1),bot:m(2),gr:m(3),lf:m(4),lr:a[5]+(b[5]-a[5])*u}}
+const seas=()=>T<35?0:T<70?1:T<100?2:T<125?3:4;
+const trunkLen=()=>18+g*62;
+const say=(x,y,t)=>texts.push({x,y,t,l:1});
+const CAPS=[[0,'Một hạt mầm vừa nhú. Hãy giữ ngón tay gần cây để tưới nước.'],[35,'Mùa hè nắng gắt, cây khát rất nhanh. Chạm vào sâu để bắt chúng.'],[70,'Mùa thu đến. Có một cơn bão đang kéo tới...'],[78,'Bão đến! Giữ ngón tay trên thân cây để che chở.'],[92,'Bão qua rồi. Cây vẫn đứng vững nhờ có bạn.'],[100,'Mùa đông. Có lúc chỉ cần kiên nhẫn chờ đợi.'],[125,'Xuân lại về. Những chú chim đã trở lại.']];
+
+/* input */
+function setP(e){const r=cv.getBoundingClientRect();px=(e.clientX-r.left)/sc;py=(e.clientY-r.top)/sc}
+cv.addEventListener('pointerdown',e=>{setP(e);down=true;if(state!=='play')return;
+ const lx=(px-TX)/fit,ly=(py-GY)/fit;
+ for(const p of pests)if(!p.dead&&Math.hypot(lx-p.x,ly-p.y)<30){p.dead=true;squashed++;burst(TX+p.x*fit,GY+p.y*fit,'#e8505b',10);tone(300,.12,'square',.08,-150);return}});
+cv.addEventListener('pointermove',setP);
+addEventListener('pointerup',()=>down=false);addEventListener('pointercancel',()=>down=false);
+function burst(x,y,c,n){for(let i=0;i<n;i++){const a=Math.random()*6.28,s=40+Math.random()*100;parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-30,l:.5,c,s:2})}}
+
+/* flow */
+function start(){initAudio();if(AC&&AC.state==='suspended')AC.resume();
+ T=0;g=.03;w=.7;pests=[];birds=[];parts=[];texts=[];spawnT=5;watered=0;squashed=0;sheltered=0;stormOn=false;sl=0;thunder=false;capI=-1;state='play';overlay.classList.add('hidden')}
+function finish(){state='end';const ok=g>=.85;
+ ttl.textContent=ok?'Cây đã lớn':'Hạt giống vẫn còn đó';sub.textContent=ok?'Bạn đã cùng cây đi qua bốn mùa':'Cây chưa kịp lớn hết';
+ msg.textContent=(ok?'Điều gì được chăm sóc bằng sự kiên nhẫn rồi cũng sẽ nở hoa.\n\nHôm nay, bạn muốn chăm sóc ai?':'Chăm sóc cần thời gian, và ta luôn có thể bắt đầu lại.\n\nThử gieo hạt thêm một lần nữa nhé?')+
+ '\n\nTưới nước '+Math.round(watered)+' giây · Bắt sâu '+squashed+' · Che bão '+Math.round(sheltered)+' giây · Chim đến '+birds.length;
+ go.textContent='Gieo hạt lại';setTimeout(()=>overlay.classList.remove('hidden'),1800)}
+go.addEventListener('click',start);
+
+/* update */
+function update(dt){
+ time+=dt;
+ if(state==='play'){
+  T+=dt;const s=seas(),L=trunkLen(),lx=(px-TX)/fit,ly=(py-GY)/fit;
+  stormOn=T>=78&&T<92;
+  if(stormOn&&!thunder){thunder=true;tone(70,1.4,'sawtooth',.12,-30)}
+  const near=down&&Math.hypot(lx,ly+110)<210,shield=stormOn&&down&&Math.abs(lx)<70&&ly>-(L+50)&&ly<40;
+  window._shield=shield;
+  if(down)for(let i=0;i<2;i++)parts.push({x:px+(Math.random()-.5)*30,y:py+Math.random()*10,vx:0,vy:120,l:.7,c:'#8fd3ff',s:2.2,gr:500});
+  if(near){w=Math.min(1,w+.3*dt);watered+=dt;dropT-=dt;if(dropT<0){dropT=.12;tone(900+Math.random()*300,.08,'sine',.03)}}
+  if(shield){sheltered+=dt;shT-=dt;if(shT<0){shT=.9;tone(196,1,'sine',.06)}}
+  if(stormOn){w=Math.min(1,w+.04*dt);if(!shield)g=Math.max(0,g-.022*dt)}
+  w=Math.max(0,w-[.022,.05,.025,.006,.01][s]*dt);
+  const f=(w>.2?1:w>0?.35:.05)/(1+.5*pests.length);
+  g=Math.min(1,g+[.0105,.0095,.0085,.0015,.004][s]*1.15*f*dt);
+  if(s<3&&g>.08&&pests.length<3){spawnT-=dt;if(spawnT<0){spawnT=5+Math.random()*4;pests.push({x:(Math.random()-.5)*6,y:-L*(.15+Math.random()*.75),l:9})}}
+  for(const p of pests){p.l-=dt;if(p.l<=0&&!p.dead){p.dead=true;g=Math.max(0,g-.03);say(TX+p.x*fit,GY+p.y*fit,'Sâu cắn lá')}}
+  pests=pests.filter(p=>!p.dead);
+  const th=[.3,.55,.8,.97];
+  if(birds.length<4&&g>th[birds.length]){birds.push({ox:(Math.random()-.5)*110,oy:40+Math.random()*80,c:['#ff7a59','#4fb6f2','#ffc93c','#b784f5'][birds.length],t:2,eat:7});
+   [523,659,784].forEach((fr,i)=>tone(fr,.3,'triangle',.12,0,i*.1))}
+  for(const b of birds){b.t-=dt;b.eat-=dt;
+   if(b.t<0){b.t=4+Math.random()*3;tone(1800,.07,'sine',.05,600);tone(2200,.07,'sine',.05,500,.1)}
+   if(b.eat<0&&pests.length){b.eat=7;pests.shift()}}
+  const wx=Math.random;
+  if(s===2&&wx()<dt*7*g)parts.push({x:TX+(wx()-.5)*200*fit*g,y:GY-(L+wx()*110*g)*fit,vx:(wx()-.5)*30,vy:12,l:5,c:'#e8892b',s:3,gr:8});
+  if(s===3&&wx()<dt*45)parts.push({x:wx()*LW,y:-5,vx:(wx()-.5)*20,vy:40,l:12,c:'#fff',s:2,gr:0});
+  if((s===0||s===4)&&wx()<dt*5*g)parts.push({x:TX+(wx()-.5)*200*fit*g,y:GY-(L+wx()*110*g)*fit,vx:(wx()-.5)*25,vy:10,l:5,c:'#ffb8d4',s:2.5,gr:6});
+  if(stormOn&&wx()<dt*140)parts.push({x:wx()*(LW+80),y:-10,vx:-90,vy:520,l:1,c:'#c4dcff',s:1.2,gr:0});
+  if(T>=END)finish();
+  wb.style.width=w*100+'%';wb.className=w<.2?'low':'';gb.style.width=g*100+'%';
+  sn.textContent=['Xuân','Hạ','Thu','Đông','Xuân về'][s]+(stormOn?' · Bão':'');
+  let ci=0;for(let i=0;i<CAPS.length;i++)if(T>=CAPS[i][0])ci=i;
+  if(ci!==capI){capI=ci;cap.textContent=CAPS[ci][1]}
+ }else if(state==='end'){for(const b of birds){b.t-=dt;if(b.t<0){b.t=3+Math.random()*3;tone(1800,.07,'sine',.05,600)}}}
+ sl+=((stormOn?1:0)-sl)*Math.min(dt*1.5,1);
+ for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=(p.gr===undefined?240:p.gr)*dt;p.l-=dt}
+ parts=parts.filter(p=>p.l>0&&p.y<LH+20);
+ for(const t of texts){t.y-=25*dt;t.l-=dt}texts=texts.filter(t=>t.l>0);
+}
+
+/* draw */
+function br(x,y,a,l,d,s,wd,c){
+ if(d===0){ctx.fillStyle=c.s;ctx.beginPath();ctx.arc(x,y,c.r,0,6.28);ctx.fill();return}
+ const x2=x+Math.cos(a)*l,y2=y+Math.sin(a)*l;
+ ctx.lineWidth=d*1.5+1;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y2);ctx.stroke();
+ const sw=Math.sin(time*1.6+s)*.035*wd;
+ br(x2,y2,a-.42-hash(s)*.3+sw,l*.76,d-1,s*2,wd,c);
+ br(x2,y2,a+.42+hash(s+1)*.3+sw,l*.76,d-1,s*2+1,wd,c)}
+function drawBird(b,L){
+ const x=b.ox*(.4+g*.6),y=-(L+b.oy*g*.8),fl=Math.sin(time*9+b.ox)*3;
+ ctx.fillStyle=b.c;ctx.beginPath();ctx.ellipse(x,y,6,4.5,0,0,6.28);ctx.fill();
+ ctx.beginPath();ctx.arc(x+5,y-3,3.2,0,6.28);ctx.fill();ctx.beginPath();ctx.moveTo(x-5,y);ctx.lineTo(x-12,y+2);ctx.lineTo(x-5,y+3);ctx.fill();
+ ctx.fillStyle='#ffb23c';ctx.beginPath();ctx.moveTo(x+8,y-3);ctx.lineTo(x+12,y-2);ctx.lineTo(x+8,y-1);ctx.fill();
+ ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.ellipse(x-1,y-1+fl*.2,4,2+Math.abs(fl)*.3,-.3,0,6.28);ctx.fill();
+ ctx.fillStyle='#222';ctx.fillRect(x+5,y-4,1.5,1.5)}
+function render(){
+ KF=kf();const sg=ctx.createLinearGradient(0,0,0,GY);sg.addColorStop(0,rgb(KF.top));sg.addColorStop(1,rgb(KF.bot));
+ ctx.fillStyle=sg;ctx.fillRect(0,0,LW,LH);
+ const sx=LW*.18,rg=ctx.createRadialGradient(sx,90,10,sx,90,130);rg.addColorStop(0,'rgba(255,246,200,.6)');rg.addColorStop(1,'rgba(255,246,200,0)');
+ ctx.fillStyle=rg;ctx.fillRect(sx-140,-40,280,260);ctx.fillStyle='#fff6c8';ctx.beginPath();ctx.arc(sx,90,30,0,6.28);ctx.fill();
+ const cc=255-sl*150|0;ctx.fillStyle='rgba('+cc+','+cc+','+(255-sl*130|0)+',.85)';
+ for(let i=0;i<3;i++){const x=((i*.45*LW+time*(8+i*3))%(LW+240))-120,y=70+i*42;ctx.beginPath();ctx.arc(x,y,20,0,6.28);ctx.arc(x+22,y-8,26,0,6.28);ctx.arc(x+48,y,20,0,6.28);ctx.fill()}
+ ctx.fillStyle=rgb(KF.gr.map(v=>v*.88));ctx.beginPath();ctx.ellipse(LW*.82,GY+240,LW*.6,250,0,0,6.28);ctx.fill();
+ ctx.fillStyle=rgb(KF.gr);ctx.beginPath();ctx.ellipse(LW/2,GY+262,LW*.95,262,0,0,6.28);ctx.fill();
+ if(sl>.01){ctx.fillStyle='rgba(30,40,70,'+sl*.45+')';ctx.fillRect(0,0,LW,LH)}
+ const L=trunkLen(),D=Math.min(7,2+Math.floor(g*6));
+ ctx.save();ctx.translate(TX,GY);ctx.scale(fit,fit);
+ if(state==='end'||T>125){const a=Math.min(Math.max((T-125)/6,0),1);ctx.globalAlpha=a;
+  ctx.fillStyle='#e86a5a';ctx.fillRect(84,-26,15,19);ctx.fillStyle='#4a5a8a';ctx.fillRect(84,-8,6,8);ctx.fillRect(93,-8,6,8);
+  ctx.fillStyle='#f2c9a0';ctx.beginPath();ctx.arc(91.5,-33,7,0,6.28);ctx.fill();ctx.fillStyle='#3a2a20';ctx.beginPath();ctx.arc(91.5,-35,7,Math.PI,0);ctx.fill();
+  ctx.fillStyle='#fff';ctx.fillRect(78,-18,9,7);ctx.globalAlpha=1}
+ ctx.fillStyle='#6b4a30';ctx.beginPath();ctx.ellipse(0,2,26,8,0,0,6.28);ctx.fill();
+ ctx.strokeStyle='#5a3a28';ctx.lineCap='round';
+ br(0,0,-Math.PI/2,L,D,1,stormOn?(window._shield?1:3.4):.6,{s:rgb(KF.lf),r:(6+g*7)*KF.lr});
+ if(window._shield&&stormOn){const gl=ctx.createRadialGradient(0,-L*.5,5,0,-L*.5,130);gl.addColorStop(0,'rgba(255,225,150,.55)');gl.addColorStop(1,'rgba(255,225,150,0)');ctx.fillStyle=gl;ctx.fillRect(-140,-L*.5-140,280,280)}
+ for(const p of pests){ctx.fillStyle='#e8505b';for(let k=0;k<3;k++){ctx.beginPath();ctx.arc(p.x+k*5-5,p.y+Math.sin(time*8+k)*1.5,4,0,6.28);ctx.fill()}ctx.fillStyle='#fff';ctx.fillRect(p.x+7,p.y-2,2,2)}
+ for(const b of birds)drawBird(b,L);
+ ctx.restore();
+ for(const p of parts){ctx.globalAlpha=Math.min(p.l*2,1);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill()}
+ ctx.globalAlpha=1;ctx.textAlign='center';ctx.font='800 17px "Baloo 2",sans-serif';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.35)';ctx.fillStyle='#fff';
+ for(const t of texts){ctx.globalAlpha=Math.min(t.l*2,1);ctx.strokeText(t.t,t.x,t.y);ctx.fillText(t.t,t.x,t.y)}
+ ctx.globalAlpha=1}
+let last=performance.now();
+function loop(n){const dt=Math.min((n-last)/1000,.05);last=n;update(dt);render();requestAnimationFrame(loop)}
+cap.textContent=CAPS[0][1];requestAnimationFrame(loop);
+</script>
+</body>
+</html>
